@@ -1,0 +1,41 @@
+LEVEL: 1
+NAME: Default Map
+S . . # .
+# # . # .
+. . . . .
+. # # # .
+. . . T .
+
+LEVEL: 2
+NAME: Open Map
+S . . . .
+. . . . .
+. . . . .
+. . . . .
+. . . . T
+
+LEVEL: 3
+NAME: No Path
+S . # . .
+. . # . .
+# # # . .
+. . . . .
+. . . . T
+
+LEVEL: 4
+NAME: Two Routes
+S . . . .
+. # # # .
+. # T # .
+. # . # .
+. . . . .
+
+LEVEL: 5
+NAME: Maze
+S # . . . . .
+. # . # # # .
+. . . . . # .
+# # # # . # .
+. . . . . # .
+. # # # # # .
+. . . . . . T
