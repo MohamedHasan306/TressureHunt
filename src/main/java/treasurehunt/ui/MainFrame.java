@@ -3,15 +3,18 @@ package treasurehunt.ui;
 import treasurehunt.game.SolutionPlayer;
 import treasurehunt.game.SolutionPlayer.Status;
 import treasurehunt.loader.LevelLoader;
+import treasurehunt.model.Direction;
 import treasurehunt.model.Level;
 import treasurehunt.model.State;
 import treasurehunt.search.SearchAlgorithm;
 import treasurehunt.search.SearchResult;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -21,9 +24,11 @@ import javax.swing.JScrollPane;
 import javax.swing.JSlider;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.text.JTextComponent;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -31,6 +36,10 @@ import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
@@ -39,6 +48,8 @@ import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 public final class MainFrame extends JFrame {
+    private static final String READY_TO_PLAY = "Use the arrow keys or WASD to reach the treasure.";
+
     private final List<SearchAlgorithm> algorithms;
     private final SolutionPlayer player;
     private final GridPanel board = new GridPanel();
@@ -101,6 +112,7 @@ public final class MainFrame extends JFrame {
             stopAnimation();
             player.reset();
             refreshPlayback();
+            board.requestFocusInWindow();
         });
         JButton run = new JButton("Run Moves");
         run.addActionListener(event -> startPlayback(manual.getText()));
@@ -112,6 +124,11 @@ public final class MainFrame extends JFrame {
         JPanel playback = row(play, pause, step, reset, labelFor("Speed", speed), speed);
         JPanel manualControls = row(labelFor("Manual moves", manual), manual, run);
         JPanel bottom = new JPanel(new GridLayout(0, 1, 0, 2));
+        bottom.add(row(new JLabel("Move (arrows / WASD)"),
+                directionButton("↑", "up", Direction.UP),
+                directionButton("←", "left", Direction.LEFT),
+                directionButton("↓", "down", Direction.DOWN),
+                directionButton("→", "right", Direction.RIGHT)));
         bottom.add(playback);
         bottom.add(manualControls);
         bottom.add(row(progress, status));
@@ -143,6 +160,18 @@ public final class MainFrame extends JFrame {
     }
 
     private void bindActions() {
+        board.setFocusable(true);
+        board.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                board.requestFocusInWindow();
+            }
+        });
+        bindDirection(Direction.UP, KeyEvent.VK_UP, KeyEvent.VK_W);
+        bindDirection(Direction.LEFT, KeyEvent.VK_LEFT, KeyEvent.VK_A);
+        bindDirection(Direction.DOWN, KeyEvent.VK_DOWN, KeyEvent.VK_S);
+        bindDirection(Direction.RIGHT, KeyEvent.VK_RIGHT, KeyEvent.VK_D);
+
         levelSelect.addActionListener(event -> {
             Level selected = (Level) levelSelect.getSelectedItem();
             if (selected != null && selected != player.getLevel()) {
@@ -186,11 +215,52 @@ public final class MainFrame extends JFrame {
         });
         addWindowListener(new WindowAdapter() {
             @Override
+            public void windowOpened(WindowEvent event) {
+                board.requestFocusInWindow();
+            }
+
+            @Override
             public void windowClosed(WindowEvent event) {
                 stopAnimation();
                 cancelSearch();
             }
         });
+    }
+
+    private void bindDirection(Direction direction, int arrowKey, int letterKey) {
+        AbstractAction move = new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (!(getFocusOwner() instanceof JTextComponent)
+                        && !(getFocusOwner() instanceof JComboBox<?>)) {
+                    moveManually(direction);
+                }
+            }
+        };
+        for (int key : new int[]{arrowKey, letterKey}) {
+            KeyStroke stroke = KeyStroke.getKeyStroke(key, 0);
+            // The board's own binding takes precedence over its scroll pane.
+            board.getInputMap(JComponent.WHEN_FOCUSED).put(stroke, direction);
+            getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(stroke, direction);
+        }
+        board.getActionMap().put(direction, move);
+        getRootPane().getActionMap().put(direction, move);
+    }
+
+    private JButton directionButton(String symbol, String label, Direction direction) {
+        JButton button = new JButton(symbol);
+        button.getAccessibleContext().setAccessibleName("Move " + label);
+        button.addActionListener(event -> {
+            moveManually(direction);
+            board.requestFocusInWindow();
+        });
+        return button;
+    }
+
+    private void moveManually(Direction direction) {
+        stopAnimation();
+        player.moveManually(direction);
+        refreshPlayback();
     }
 
     private void showLevel(Level level) {
@@ -323,8 +393,11 @@ public final class MainFrame extends JFrame {
 
     private void refreshPlayback() {
         board.setPlayer(player.getPlayerPosition());
-        progress.setText("Step " + player.getStep() + " / " + player.getMoveCount());
-        status.setText(player.getMessage());
+        Status current = player.getStatus();
+        progress.setText(current == Status.MANUAL
+                ? "Moves: " + player.getStep()
+                : "Step " + player.getStep() + " / " + player.getMoveCount());
+        status.setText(current == Status.READY ? READY_TO_PLAY : player.getMessage());
         updatePlaybackControls();
     }
 

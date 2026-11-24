@@ -6,7 +6,7 @@ import treasurehunt.model.Position;
 
 public final class SolutionPlayer {
     public enum Status {
-        READY, PLAYING, PAUSED, COMPLETE, ERROR
+        READY, MANUAL, PLAYING, PAUSED, COMPLETE, ERROR
     }
 
     private final GameEngine game;
@@ -69,6 +69,27 @@ public final class SolutionPlayer {
         if (status == Status.PAUSED) {
             advance();
         }
+    }
+
+    /** Switches to direct control at the current position and discards any queued replay. */
+    public void moveManually(Direction direction) {
+        if (status != Status.MANUAL) {
+            status = Status.MANUAL;
+            moves = "";
+            step = 0;
+        }
+        if (game.reachedTreasure()) {
+            message = "Treasure reached! Use Reset to play again.";
+            return;
+        }
+        if (!game.move(direction)) {
+            message = "A wall or the edge of the map blocks the move.";
+            return;
+        }
+        step++;
+        message = game.reachedTreasure()
+                ? "Treasure reached! Use Reset to play again."
+                : "Playing manually";
     }
 
     private void advance() {
